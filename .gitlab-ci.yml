@@ -1,0 +1,36 @@
+image: python:3.7
+
+stages:
+  - test
+
+test:
+  stage: test
+
+  before_script:
+    - echo "Install environment"
+    - apt-get update -q -y
+    - pip3 install -r requirements.txt
+    - echo "Changed users"
+    - python3 "./scripts/change_users_for_gitlab_runner.py" # подменяем аккаунты в конфиге для запуска в gitlab
+    - echo "Clear teams for all users"
+    - python3 "./scripts/clear_all_users.py"
+    
+  script:
+    - echo "Run all tests"
+    - echo "1" > exit_code.txt
+    - py.test -s -v --html=report.html --self-contained-html "./tests"
+    #- py.test -s -v tests/api/test_other.py::TestsOther::test_time --html=report.html --self-contained-html # для дебага
+    - echo "0" > exit_code.txt
+    
+  after_script:
+    # Отправка отчетов о тестах в группу
+    - echo "Send report to chat"
+    - EXIT_CODE=$(cat exit_code.txt)
+    - python3 ./scripts/send_tests_report.py $CI_JOB_ID $EXIT_CODE
+
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/report.html
+      - $CI_PROJECT_DIR/exit_code.txt
+    expire_in: 1 month
